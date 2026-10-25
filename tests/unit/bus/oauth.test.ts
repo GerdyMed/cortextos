@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -234,6 +234,31 @@ describe('checkUsageApi resets_at', () => {
     expect(cached.cached).toBe(true);
     expect(cached.seven_day_resets_at).toBe('2026-10-31T01:00:00.000Z');
     expect(mockFetch).toHaveBeenCalledOnce();
+  });
+
+  it('reads a pre-fix cache (no resets_at keys) back with null resets_at', async () => {
+    writeStore();
+    const usageDir = join(tmpDir, 'state', 'usage');
+    mkdirSync(usageDir, { recursive: true });
+    writeFileSync(
+      join(usageDir, 'cache.json'),
+      JSON.stringify({
+        snapshot: {
+          account: 'primary',
+          five_hour_utilization: 0.04,
+          seven_day_utilization: 0.01,
+          fetched_at: '2026-10-25T00:00:00.000Z',
+        },
+        expires_at: Date.now() + 60_000,
+      }),
+    );
+
+    const result = await checkUsageApi(tmpDir);
+    expect(result.cached).toBe(true);
+    expect(result.five_hour_utilization).toBe(0.04);
+    expect(result.five_hour_resets_at).toBeNull();
+    expect(result.seven_day_resets_at).toBeNull();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });
 
